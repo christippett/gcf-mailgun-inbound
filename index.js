@@ -17,7 +17,6 @@ const Datastore = require('@google-cloud/datastore');
  */
 exports.mailgunInboundEmail = (req, res) => {
     if (req.method === 'POST') {
-        const emailId = uuid()
         const tmpdir = os.tmpdir();
         const busboy = new Busboy({ headers: req.headers });
 
@@ -49,8 +48,11 @@ exports.mailgunInboundEmail = (req, res) => {
             // Save InboundEmail to Datastore
             processData(fields)
                 .then(key => {
-                    const prefix = [generateDate(), fields['sender'], key];
-                    processFiles(uploads, prefix);
+                    const prefix = [generateDate(), fields['sender'], key.path[1]];
+                    return processFiles(uploads, prefix);
+                })
+                .then(gcsUploadPaths => {
+                    console.log(gcsUploadPaths);
                 })
                 .then(() => res.send());
         });
@@ -101,12 +103,13 @@ function processData(fields) {
         'stripped-signature',
         'body-html',
         'body-plain',
-        'message-headers'
+        'message-headers',
+        'content-id-map'
     ];
     return datastore.save({ key, excludeFromIndexes, data })
         .then(() => {
             console.log(`InboundEmail saved to Datastore with key: ${key.path[1]}`);
-            return key.path[1];
+            return key;
         })
         .catch(err => {
             console.error('ERROR:', err);
@@ -129,8 +132,10 @@ function processFiles(files, prefix) {
             .bucket(bucketName)
             .upload(file, { destination })
             .then(() => {
-                console.log(`${file} uploaded to gs://${bucketName}/${destination}.`);
+                let gcsPath = `gs://${bucketName}/${destination}`;
+                console.log(`${file} uploaded to ${gcsPath}.`);
                 fs.unlinkSync(file);
+                return gcsPath;
             })
             .catch(err => {
                 console.error(`Error uploading ${file} to gs://${bucketName}/${destination}.`);
