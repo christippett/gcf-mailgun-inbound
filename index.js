@@ -45,33 +45,9 @@ exports.mailgunInboundEmail = (req, res) => {
 
         // This event will be triggered after all uploaded files are saved.
         busboy.on('finish', () => {
-            // TODO(developer): Process uploaded files here
-            // Create storage client
-            const storage = new Storage();
-            const bucketName = 'aeroster-inbound-email-attachments';
-            const today = new Date();
-            const dd = ('0' + today.getDate()).slice(-2);
-            const mm = ('0' + (today.getMonth() + 1)).slice(-2); //January is 0!
-            const yyyy = today.getFullYear();
-
-            // Remove temp files
-            for (const name in uploads) {
-                const file = uploads[name];
-                const destination = `${yyyy}${mm}${dd}/${fields['sender']}/${emailId}/${path.basename(file)}`
-                console.log(`File uploaded to ${file}`)
-                // Uploads a local file to the bucket with the kms key
-                storage
-                    .bucket(bucketName)
-                    .upload(file, { destination })
-                    .then(() => {
-                        console.log(`${file} uploaded to gs://${bucketName}/${destination}.`);
-                        fs.unlinkSync(file);
-                    })
-                    .catch(err => {
-                        console.error(`Error uploading ${file} to gs://${bucketName}/${destination}.`);
-                        console.error('ERROR:', err);
-                    });
-            }
+            // Process email attachments, upload to GCS
+            const prefix = [generateDate(), fields['sender'], emailId]
+            processFiles(uploads, prefix);
             res.send();
         });
 
@@ -83,3 +59,36 @@ exports.mailgunInboundEmail = (req, res) => {
     }
 };
 // [END functions_mailgun_inbound_email]
+
+function generateDate() {
+    const today = new Date();
+    const dd = ('0' + today.getDate()).slice(-2);
+    const mm = ('0' + (today.getMonth() + 1)).slice(-2); //January is 0!
+    const yyyy = today.getFullYear();
+    return `${yyyy}${mm}${dd}`
+}
+
+function processFiles(files, prefix) {
+    // Create storage client
+    const storage = new Storage();
+    const bucketName = 'aeroster-inbound-email-attachments';
+
+    // Remove temp files
+    for (const name in files) {
+        const file = files[name];
+        const destination = prefix.join('/') + '/' + path.basename(file)
+        console.log(`File uploaded to ${file}`)
+        // Uploads a local file to the bucket with the kms key
+        storage
+            .bucket(bucketName)
+            .upload(file, { destination })
+            .then(() => {
+                console.log(`${file} uploaded to gs://${bucketName}/${destination}.`);
+                fs.unlinkSync(file);
+            })
+            .catch(err => {
+                console.error(`Error uploading ${file} to gs://${bucketName}/${destination}.`);
+                console.error('ERROR:', err);
+            });
+    }
+};
