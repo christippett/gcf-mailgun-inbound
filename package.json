@@ -10,6 +10,7 @@
   "author": "Chris Tippett",
   "license": "MIT",
   "dependencies": {
+    "@google-cloud/datastore": "^1.4.0",
     "@google-cloud/storage": "^1.7.0",
     "busboy": "^0.2.14"
   }

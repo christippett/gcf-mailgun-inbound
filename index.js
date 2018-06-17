@@ -6,6 +6,7 @@ const fs = require('fs');
 const uuid = require(`uuid`);
 const Busboy = require('busboy');
 const Storage = require('@google-cloud/storage');
+const Datastore = require('@google-cloud/datastore');
 
 // [START functions_mailgun_inbound_email]
 /**
@@ -45,10 +46,13 @@ exports.mailgunInboundEmail = (req, res) => {
 
         // This event will be triggered after all uploaded files are saved.
         busboy.on('finish', () => {
-            // Process email attachments, upload to GCS
-            const prefix = [generateDate(), fields['sender'], emailId]
-            processFiles(uploads, prefix);
-            res.send();
+            // Save InboundEmail to Datastore
+            processData(fields)
+                .then(key => {
+                    const prefix = [generateDate(), fields['sender'], key];
+                    processFiles(uploads, prefix);
+                })
+                .then(() => res.send());
         });
 
         req.pipe(busboy);
@@ -68,10 +72,52 @@ function generateDate() {
     return `${yyyy}${mm}${dd}`
 }
 
+function filterObjectProperties(raw, filteredKeys) {
+    return Object.keys(raw)
+    .filter(key => filteredKeys.includes(key))
+    .reduce((obj, key) => {
+      obj[key] = raw[key];
+      return obj;
+    }, {});
+}
+
+function processData(fields) {
+    const datastore = new Datastore();
+    const key = datastore.key(['InboundEmail']);
+    const timestampAsDate = new Date(0);
+    timestampAsDate.setUTCSeconds(fields['timestamp']);
+    const includeFields = [
+        'recipient', 'sender', 'from', 'subject', 'body-plain', 'stripped-text',
+        'stripped-signature', 'body-html', 'stripped-html', 'attachment-count',
+        'timestamp', 'token', 'signature', 'message-headers', 'content-id-map'
+    ]
+    const data = filterObjectProperties(fields, includeFields);
+    data['timestamp'] = datastore.int(data['timestamp']);
+    data['attachment-count'] = datastore.int(data['attachment-count']);
+    data['date'] = timestampAsDate;
+    const excludeFromIndexes = [
+        'stripped-text',
+        'stripped-html',
+        'stripped-signature',
+        'body-html',
+        'body-plain',
+        'message-headers'
+    ];
+    return datastore.save({ key, excludeFromIndexes, data })
+        .then(() => {
+            console.log(`InboundEmail saved to Datastore with key: ${key.path[1]}`);
+            return key.path[1];
+        })
+        .catch(err => {
+            console.error('ERROR:', err);
+        })
+}
+
 function processFiles(files, prefix) {
     // Create storage client
     const storage = new Storage();
     const bucketName = 'aeroster-inbound-email-attachments';
+    const uploadTasks = [];
 
     // Remove temp files
     for (const name in files) {
@@ -79,7 +125,7 @@ function processFiles(files, prefix) {
         const destination = prefix.join('/') + '/' + path.basename(file)
         console.log(`File uploaded to ${file}`)
         // Uploads a local file to the bucket with the kms key
-        storage
+        uploadTasks.push(storage
             .bucket(bucketName)
             .upload(file, { destination })
             .then(() => {
@@ -89,6 +135,7 @@ function processFiles(files, prefix) {
             .catch(err => {
                 console.error(`Error uploading ${file} to gs://${bucketName}/${destination}.`);
                 console.error('ERROR:', err);
-            });
+            }));
     }
+    return Promise.all(uploadTasks);
 };
