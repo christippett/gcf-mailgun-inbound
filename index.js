@@ -3,7 +3,6 @@
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const uuid = require(`uuid`);
 const Busboy = require('busboy');
 const Storage = require('@google-cloud/storage');
 const Datastore = require('@google-cloud/datastore');
@@ -57,7 +56,12 @@ exports.mailgunInboundEmail = (req, res) => {
                 .then(() => res.send());
         });
 
+        if (req.rawBody) {
+            busboy.end(req.rawBody);
+        }
+        else {
         req.pipe(busboy);
+        }
 
     } else {
         // Return a "method not allowed" error
