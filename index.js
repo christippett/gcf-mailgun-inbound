@@ -1,5 +1,6 @@
 'use strict';
 
+const debug = require('@google-cloud/debug-agent').start({ allowExpressions: true });
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -15,6 +16,7 @@ const Datastore = require('@google-cloud/datastore');
  * @param {Object} res Cloud Function response context.
  */
 exports.mailgunInboundEmail = (req, res) => {
+    const debugReady = debug.isReady();
     if (req.method === 'POST') {
         const tmpdir = os.tmpdir();
         const busboy = new Busboy({ headers: req.headers });
@@ -45,27 +47,27 @@ exports.mailgunInboundEmail = (req, res) => {
         // This event will be triggered after all uploaded files are saved.
         busboy.on('finish', () => {
             // Save InboundEmail to Datastore
-            processData(fields)
+            const saveEmail = processData(fields)
                 .then(key => {
-                    const prefix = [generateDate(), fields['sender'], key.path[1]];
+                    const prefix = [generateDate(), fields['recipient'], key.path[1]];
                     return processFiles(uploads, prefix);
                 })
                 .then(gcsUploadPaths => {
                     console.log(gcsUploadPaths);
                 })
-                .then(() => res.send());
+            Promise.all([saveEmail, debugReady]).then(() => res.send());
         });
 
         if (req.rawBody) {
             busboy.end(req.rawBody);
         }
         else {
-        req.pipe(busboy);
+            req.pipe(busboy);
         }
 
     } else {
         // Return a "method not allowed" error
-        res.status(405).end();
+        debugReady.then(() => res.status(405).end());
     }
 };
 // [END functions_mailgun_inbound_email]
