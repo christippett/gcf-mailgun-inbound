@@ -49,7 +49,7 @@ exports.mailgunInboundEmail = (req, res) => {
             // Save InboundEmail to Datastore
             const saveEmail = processData(fields)
                 .then(key => {
-                    const prefix = [generateDate(), fields['recipient'], key.path[1]];
+                    const prefix = [fields['recipient'], key.path[1]];
                     return processFiles(uploads, prefix);
                 })
                 .then(gcsUploadPaths => {
