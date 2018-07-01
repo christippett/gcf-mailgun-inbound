@@ -13,8 +13,8 @@ class EmailProcessor {
     constructor(entityType, bucketName) {
         this.entityType = entityType;
         this.bucketName = bucketName;
-        this.datastore = new Datastore({keyFilename: '/Users/christippett/aeroster-176411-5be0f278f23a.json'});
-        this.storage = new Storage({keyFilename: '/Users/christippett/aeroster-176411-5be0f278f23a.json'});
+        this.datastore = new Datastore();
+        this.storage = new Storage();
         this.fields = {};
         this.uploads = {};
     }
