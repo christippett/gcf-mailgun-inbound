@@ -1,6 +1,6 @@
 'use strict';
 
-const debug = require('@google-cloud/debug-agent').start({allowExpressions: true});
+// const debug = require('@google-cloud/debug-agent').start({allowExpressions: true});
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -10,9 +10,9 @@ const Storage = require('@google-cloud/storage');
 const Datastore = require('@google-cloud/datastore');
 
 class EmailProcessor {
-    constructor(entityType, bucketName) {
-        this.entityType = entityType;
-        this.bucketName = bucketName;
+    constructor(options) {
+        this.entityType = options.entityType;
+        this.bucketName = options.bucketName;
         this.datastore = new Datastore();
         this.storage = new Storage();
         this.fields = {};
@@ -154,7 +154,7 @@ class EmailProcessor {
  * @param {Object} res Cloud Function response context.
  */
 exports.mailgunInboundEmail = (req, res) => {
-    const debugReady = debug.isReady();
+    // const debugReady = debug.isReady();
     if (req.method === 'POST') {
         const emailProcessor = new EmailProcessor({
             entityType: 'InboundEmail',
@@ -163,7 +163,7 @@ exports.mailgunInboundEmail = (req, res) => {
         emailProcessor.handleRequest(req, res);
     } else {
         // Return a "method not allowed" error
-        debugReady.then(() => res.status(405).end());
+        // debugReady.then(() => res.status(405).end());
     }
 };
 // [END functions_mailgun_inbound_email]
