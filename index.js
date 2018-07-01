@@ -82,7 +82,7 @@ class EmailProcessor {
     }
 
     storeFiles(key, fields, uploads) {
-        const prefix = [fields['recipient'], key];
+        const prefix = [fields['recipient'], key.path[1]];
         const uploadTasks = [];
         const bucketName = this.bucketName;
         for (const name in uploads) {
