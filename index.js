@@ -61,6 +61,7 @@ class EmailProcessor {
             'recipient', 'sender', 'from', 'subject', 'body-plain', 'stripped-text',
             'stripped-signature', 'body-html', 'stripped-html', 'attachment-count',
             'timestamp', 'token', 'signature', 'message-headers', 'content-id-map',
+            'attachments',
         ];
         const excludeFromIndexes = [
             'stripped-text',
@@ -107,17 +108,10 @@ class EmailProcessor {
 
     saveEmail() {
         const key = this.datastore.key(['InboundEmail', uuidv4()]);
-        const storeEmail = this.storeEmail(key, this.fields);
-        const storeFiles = this.storeFiles(key, this.fields, this.uploads);
-        // const publishMessage = this.publishMessage();
-        return Promise.all([storeEmail, storeFiles])
-            .then((data) => {
-                const emailEntity = data[0];
-                const gcsUploadPaths = data[1];
-                if (gcsUploadPaths) {
-                    return this.datastore.save({key, data: emailEntity})
-                        .then(() => console.log('Updated InboundEmail with path of uploaded attachment(s)'));
-                }
+        return this.storeFiles(key, this.fields, this.uploads)
+            .then((uploadedFiles) => {
+                this.fields['attachments'] = uploadedFiles;
+                return this.storeEmail(key, this.fields);
             })
             .then(() => key.path[1])
             .catch((err) => console.error('ERROR:', err));
@@ -127,8 +121,8 @@ class EmailProcessor {
         return Object.keys(raw)
             .filter((key) => filteredKeys.includes(key))
             .reduce((obj, key) => {
-            obj[key] = raw[key];
-            return obj;
+                obj[key] = raw[key];
+                return obj;
             }, {});
     }
 
