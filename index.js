@@ -111,9 +111,10 @@ class EmailProcessor {
         const storeFiles = this.storeFiles(key, this.fields, this.uploads);
         // const publishMessage = this.publishMessage();
         return Promise.all([storeEmail, storeFiles])
-            .then((data, gcsUploadPaths) => {
+            .then((data) => {
+                const emailEntity = data[0];
+                const gcsUploadPaths = data[1];
                 if (gcsUploadPaths) {
-                    const emailEntity = data[0];
                     return this.datastore.save({key, data: emailEntity})
                         .then(() => console.log('Updated InboundEmail with path of uploaded attachment(s)'));
                 }
