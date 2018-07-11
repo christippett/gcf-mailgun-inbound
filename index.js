@@ -94,7 +94,7 @@ class EmailProcessor {
                     .upload(file, {destination})
                     .then(() => {
                         let gcsPath = `gs://${bucketName}/${destination}`;
-                        console.log(`Uploaded file ${fileName} to ${gcsPath}.`);
+                        console.log(`Uploaded to ${gcsPath}.`);
                         fs.unlinkSync(file); // delete temp file
                         return gcsPath;
                     })
