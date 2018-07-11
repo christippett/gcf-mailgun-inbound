@@ -41,15 +41,15 @@ class EmailProcessor {
 
     saveEmail() {
         const key = this.datastore.key([this.emailEntityName, uuidv4()]);
-        return this.storeFiles(key, this.fields, this.uploads)
+        return this.storeFileObject(key, this.fields, this.uploads)
             .then((uploadedFiles) => {
                 this.fields['attachments'] = uploadedFiles;
-                return this.storeEmail(key, this.fields);
+                return this.createEmailEntity(key, this.fields);
             })
             .then(() => key.path[1]);
     }
 
-    storeEmail(key, fields) {
+    createEmailEntity(key, fields) {
         // Include only parsed message fields
         // Refer: https://documentation.mailgun.com/en/latest/user_manual.html#parsed-messages-parameters
         const includeFields = [
@@ -76,29 +76,30 @@ class EmailProcessor {
             })
             .catch((err) => {
                 console.error(`Error saving ${this.emailEntityName}:`, err);
-                Promise.reject(err);
+                return Promise.reject(err);
             });
     }
 
-    storeFiles(key, fields, uploads) {
+    storeFileObject(key, fields, uploads) {
         const prefix = [fields['recipient'], key.path[1]];
         const uploadTasks = [];
         const bucketName = this.bucketName;
         for (const name in uploads) {
             if (uploads.hasOwnProperty(name)) {
                 const file = uploads[name];
-                const destination = prefix.join('/') + '/' + path.basename(file);
+                const fileName = path.basename(file);
+                const destination = prefix.join('/') + '/' + fileName;
                 uploadTasks.push(this.storage
                     .bucket(bucketName)
                     .upload(file, {destination})
                     .then(() => {
                         let gcsPath = `gs://${bucketName}/${destination}`;
-                        console.log(`${file} uploaded to ${gcsPath}.`);
+                        console.log(`Uploaded file ${fileName} to ${gcsPath}.`);
                         fs.unlinkSync(file); // delete temp file
                         return gcsPath;
                     })
                     .catch((err) => {
-                        console.error(`Error uploading ${file} to gs://${bucketName}/${destination}:`, err);
+                        console.error(`Error uploading ${fileName}`, err);
                         return Promise.reject(err);
                     })
                 );
