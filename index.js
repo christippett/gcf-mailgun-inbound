@@ -13,8 +13,8 @@ class EmailProcessor {
     constructor(options) {
         this.entityType = options.entityType;
         this.bucketName = options.bucketName;
-        this.datastore = new Datastore();
-        this.storage = new Storage();
+        this.datastore = options.datastore;
+        this.storage = options.storage;
         this.fields = {};
         this.uploads = {};
     }
@@ -143,6 +143,8 @@ exports.mailgunInboundEmail = (req, res) => {
         const emailProcessor = new EmailProcessor({
             entityType: 'InboundEmail',
             bucketName: 'aeroster-inbound-email-attachments',
+            datastore: new Datastore(),
+            storage: new Storage(),
         });
         const busboy = new Busboy({headers: req.headers});
         busboy.on('field', emailProcessor.processField.bind(emailProcessor)); // Process each field
