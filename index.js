@@ -39,7 +39,7 @@ class EmailProcessor {
     }
 
     saveEmail() {
-        const key = this.datastore.key(['InboundEmail', uuidv4()]);
+        const key = this.datastore.key([this.entityType, uuidv4()]);
         return this.storeFiles(key, this.fields, this.uploads)
             .then((uploadedFiles) => {
                 this.fields['attachments'] = uploadedFiles;
@@ -70,11 +70,11 @@ class EmailProcessor {
         data['date'] = this._convertTimestampToDate(data['timestamp']);
         return this.datastore.save({key, excludeFromIndexes, data})
             .then(() => {
-                console.log(`InboundEmail saved to Datastore with key: ${key.path[1]}`);
+                console.log(`${this.entityType} saved to Datastore with key: ${key.path[1]}`);
                 return data;
             })
             .catch((err) => {
-                console.error('Error saving InboundEmail:', err);
+                console.error(`Error saving ${this.entityType}:`, err);
                 Promise.reject(err);
             });
     }
