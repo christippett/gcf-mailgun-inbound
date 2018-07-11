@@ -11,7 +11,8 @@ const Datastore = require('@google-cloud/datastore');
 
 class EmailProcessor {
     constructor(options) {
-        this.entityType = options.entityType;
+        this.emailEntityName = options.emailEntityName;
+        this.attachmentEntityName = options.attachmentEntityName;
         this.bucketName = options.bucketName;
         this.datastore = options.datastore;
         this.storage = options.storage;
@@ -39,7 +40,7 @@ class EmailProcessor {
     }
 
     saveEmail() {
-        const key = this.datastore.key([this.entityType, uuidv4()]);
+        const key = this.datastore.key([this.emailEntityName, uuidv4()]);
         return this.storeFiles(key, this.fields, this.uploads)
             .then((uploadedFiles) => {
                 this.fields['attachments'] = uploadedFiles;
@@ -70,11 +71,11 @@ class EmailProcessor {
         data['date'] = this._convertTimestampToDate(data['timestamp']);
         return this.datastore.save({key, excludeFromIndexes, data})
             .then(() => {
-                console.log(`${this.entityType} saved to Datastore with key: ${key.path[1]}`);
+                console.log(`${this.emailEntityName} saved to Datastore with key: ${key.path[1]}`);
                 return data;
             })
             .catch((err) => {
-                console.error(`Error saving ${this.entityType}:`, err);
+                console.error(`Error saving ${this.emailEntityName}:`, err);
                 Promise.reject(err);
             });
     }
@@ -141,7 +142,8 @@ exports.mailgunInboundEmail = (req, res) => {
     const debugReady = debug.isReady();
     if (req.method === 'POST') {
         const emailProcessor = new EmailProcessor({
-            entityType: 'InboundEmail',
+            emailEntityName: 'InboundEmail',
+            attachmentEntityName: 'InboundEmailAttachment',
             bucketName: 'aeroster-inbound-email-attachments',
             datastore: new Datastore(),
             storage: new Storage(),
