@@ -22,7 +22,7 @@ class EmailProcessor {
 
     processField(fieldname, val) {
         // TODO(developer): Process submitted field values here
-        console.log(`Processed field ${fieldname}: ${val}.`);
+        console.log(`Processed field: ${fieldname}`);
         if (['timestamp', 'attachment-count'].indexOf(fieldname) > -1) {
             val = parseInt(val);
         }
@@ -32,7 +32,7 @@ class EmailProcessor {
     processFile(fieldname, file, filename) {
         // Note: os.tmpdir() points to an in-memory file system on GCF
         // Thus, any files in it must fit in the instance's memory.
-        console.log(`Processed file ${filename}`);
+        console.log(`Processed file: ${filename}`);
         const tmpdir = os.tmpdir();
         const filepath = path.join(tmpdir, filename);
         this.uploads[fieldname] = filepath;
