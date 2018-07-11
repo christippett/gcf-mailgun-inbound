@@ -19,24 +19,6 @@ class EmailProcessor {
         this.uploads = {};
     }
 
-    handleRequest(req, res) {
-        const busboy = new Busboy({headers: req.headers});
-        busboy.on('field', this.processField.bind(this)); // Process each field
-        busboy.on('file', this.processFile.bind(this)); // Process each file uploaded
-        busboy.on('finish', () => this.saveEmail.bind(this)()
-            .then((entityId) => res.send(`Email received and processed successfully: ${entityId}`))
-            .catch(() => res.status(500).send({error: 'Something blew up!'}))
-        );
-
-        // Workaround to support req.rawBody not being available in the emulator
-        // https://github.com/GoogleCloudPlatform/cloud-functions-emulator/issues/161#issuecomment-376563784
-        if (req.rawBody) {
-            busboy.end(req.rawBody);
-        } else {
-            req.pipe(busboy);
-        }
-    }
-
     processField(fieldname, val) {
         // TODO(developer): Process submitted field values here
         console.log(`Processed field ${fieldname}: ${val}.`);
@@ -56,7 +38,19 @@ class EmailProcessor {
         file.pipe(fs.createWriteStream(filepath));
     }
 
+    saveEmail() {
+        const key = this.datastore.key(['InboundEmail', uuidv4()]);
+        return this.storeFiles(key, this.fields, this.uploads)
+            .then((uploadedFiles) => {
+                this.fields['attachments'] = uploadedFiles;
+                return this.storeEmail(key, this.fields);
+            })
+            .then(() => key.path[1]);
+    }
+
     storeEmail(key, fields) {
+        // Include only parsed message fields
+        // Refer: https://documentation.mailgun.com/en/latest/user_manual.html#parsed-messages-parameters
         const includeFields = [
             'recipient', 'sender', 'from', 'subject', 'body-plain', 'stripped-text',
             'stripped-signature', 'body-html', 'stripped-html', 'attachment-count',
@@ -79,7 +73,10 @@ class EmailProcessor {
                 console.log(`InboundEmail saved to Datastore with key: ${key.path[1]}`);
                 return data;
             })
-            .catch((err) => console.error('Error saving InboundEmail:', err));
+            .catch((err) => {
+                console.error('Error saving InboundEmail:', err);
+                Promise.reject(err);
+            });
     }
 
     storeFiles(key, fields, uploads) {
@@ -99,22 +96,14 @@ class EmailProcessor {
                         fs.unlinkSync(file); // delete temp file
                         return gcsPath;
                     })
-                    .catch((err) => console.error(`Error uploading ${file} to gs://${bucketName}/${destination}:`, err))
+                    .catch((err) => {
+                        console.error(`Error uploading ${file} to gs://${bucketName}/${destination}:`, err);
+                        return Promise.reject(err);
+                    })
                 );
             }
         };
         return Promise.all(uploadTasks);
-    }
-
-    saveEmail() {
-        const key = this.datastore.key(['InboundEmail', uuidv4()]);
-        return this.storeFiles(key, this.fields, this.uploads)
-            .then((uploadedFiles) => {
-                this.fields['attachments'] = uploadedFiles;
-                return this.storeEmail(key, this.fields);
-            })
-            .then(() => key.path[1])
-            .catch((err) => console.error('ERROR:', err));
     }
 
     _filterObjectProperties(raw, filteredKeys) {
@@ -155,7 +144,22 @@ exports.mailgunInboundEmail = (req, res) => {
             entityType: 'InboundEmail',
             bucketName: 'aeroster-inbound-email-attachments',
         });
-        emailProcessor.handleRequest(req, res);
+        const busboy = new Busboy({headers: req.headers});
+        busboy.on('field', emailProcessor.processField.bind(emailProcessor)); // Process each field
+        busboy.on('file', emailProcessor.processFile.bind(emailProcessor)); // Process each file uploaded
+        busboy.on('finish', () => {
+            const emailSaved = emailProcessor.saveEmail.bind(emailProcessor)();
+            Promise.all([emailSaved, debugReady])
+                .then((data) => res.send(`Email received and processed successfully: ${data[0]}`))
+                .catch((err) => res.status(500).send(err));
+        });
+        // Workaround to support req.rawBody not being available in the emulator
+        // https://github.com/GoogleCloudPlatform/cloud-functions-emulator/issues/161#issuecomment-376563784
+        if (req.rawBody) {
+            busboy.end(req.rawBody);
+        } else {
+            req.pipe(busboy);
+        }
     } else {
         // Return a "method not allowed" error
         debugReady.then(() => res.status(405).end());
