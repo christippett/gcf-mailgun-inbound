@@ -2,7 +2,7 @@
   "name": "mailgun-cloud-function",
   "version": "0.0.1",
   "description": "Google Cloud Function for receiving inbound emails from Mailgun, supports saving email data to Google Datastore and attachments to Google Cloud Storage",
-  "main": "index.js",
+  "main": "function/index.js",
   "scripts": {
     "test": "standard && ava",
     "debug": "functions-emulator deploy mailgunInboundEmail --trigger-http && functions-emulator debug mailgunInboundEmail"
