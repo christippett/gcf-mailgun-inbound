@@ -2,16 +2,32 @@
 
 const fs = require('fs')
 const uuidv4 = require('uuid/v4')
+const busboyPromise = require('./busboy.js')
 const { filterProperties, convertTimestampToDate } = require('./utils.js')
 
 module.exports = class EmailProcessor {
-    constructor ({emailEntity, attachmentEntity, bucketName, datastore, storage}) {
+    constructor ({emailEntity, attachmentEntity, bucketName}, datastore, storage) {
       this.key = datastore.key([emailEntity, uuidv4()])
       this.emailEntity = emailEntity
       this.attachmentEntity = attachmentEntity
       this.bucketName = bucketName
       this.datastore = datastore
       this.storage = storage
+    }
+
+    handleRequest (req, res) {
+      busboyPromise(req)
+      .then((parts) => {
+        const saveMessage = this.saveMessage(parts.fields, objectPrefix)
+        const objectPrefix = [parts.fields['recipient'], this.key.path[1]]
+        const saveAttachments = this.saveAttachments(parts.files, objectPrefix)
+        return Promise.all([saveMessage, saveAttachments])
+      })
+      .then(() => res.send(`Email received and processed successfully: ${this.key.path[1]}`))
+      .catch((err) => {
+        console.error(err)
+        res.status(500).send('Something went wrong!')
+      })
     }
 
     saveMessage (fields) {
