@@ -6,8 +6,8 @@ const os = require('os');
 const fs = require('fs');
 const uuidv4 = require('uuid/v4');
 const Busboy = require('busboy');
-const Storage = require('@google-cloud/storage');
-const Datastore = require('@google-cloud/datastore');
+const storage = require('@google-cloud/storage')();
+const datastore = require('@google-cloud/datastore')();
 
 class EmailProcessor {
     constructor(options) {
@@ -39,14 +39,11 @@ class EmailProcessor {
         file.pipe(fs.createWriteStream(filepath));
     }
 
-    saveEmail() {
-        const key = this.datastore.key([this.emailEntityName, uuidv4()]);
-        return this.storeFileObject(key, this.fields, this.uploads)
-            .then((uploadedFiles) => {
-                this.fields['attachments'] = uploadedFiles;
-                return this.createEmailEntity(key, this.fields);
-            })
-            .then(() => key.path[1]);
+    save() {
+        const emailKey = this.datastore.key([this.emailEntityName, uuidv4()]);
+        return this.storeFileObject(emailKey, this.fields, this.uploads)
+            .then(() => this.createEmailEntity(emailKey, this.fields))
+            .then(() => Promise.resolve(emailKey.path[1]));
     }
 
     createEmailEntity(key, fields) {
@@ -80,28 +77,46 @@ class EmailProcessor {
             });
     }
 
-    storeFileObject(key, fields, uploads) {
-        const prefix = [fields['recipient'], key.path[1]];
+    createAttachmentEntity(emailKey, metadata) {
+        const key = this.datastore.key(emailKey.path.concat(this.attachmentEntityName));
+        const attachment = {
+            key,
+            data: {
+                bucket: metadata.bucket,
+                name: metadata.name,
+                contentType: metadata.contentType,
+                size: metadata.size,
+                md5Hash: metadata.md5Hash,
+            },
+        };
+        return this.datastore.save(attachment);
+    }
+
+    storeFileObject(emailKey, fields, uploads) {
+        const prefix = [fields['recipient'], emailKey.path[1]];
         const uploadTasks = [];
         const bucketName = this.bucketName;
+        const bucket = this.storage.bucket(bucketName);
         for (const name in uploads) {
             if (uploads.hasOwnProperty(name)) {
                 const file = uploads[name];
                 const fileName = path.basename(file);
                 const destination = prefix.join('/') + '/' + fileName;
-                uploadTasks.push(this.storage
-                    .bucket(bucketName)
+                uploadTasks.push(
+                    bucket
                     .upload(file, {destination})
-                    .then(() => {
-                        let gcsPath = `gs://${bucketName}/${destination}`;
-                        console.log(`Uploaded to ${gcsPath}.`);
-                        fs.unlinkSync(file); // delete temp file
-                        return gcsPath;
-                    })
-                    .catch((err) => {
-                        console.error(`Error uploading ${fileName}`, err);
-                        return Promise.reject(err);
-                    })
+                        .then(() => {
+                            let gcsPath = `gs://${bucketName}/${destination}`;
+                            console.log(`Uploaded to ${gcsPath}.`);
+                            fs.unlinkSync(file);
+                            return Promise.resolve();
+                        })
+                        .then(() => bucket.file(destination).getMetadata())
+                        .then((metadata) => this.createAttachmentEntity.bind(this)(emailKey, metadata[0]))
+                        .catch((err) => {
+                            console.error(`Error uploading file ${fileName}: `, err);
+                            return Promise.reject(err);
+                        })
                 );
             }
         };
@@ -142,29 +157,32 @@ class EmailProcessor {
 exports.mailgunInboundEmail = (req, res) => {
     const debugReady = debug.isReady();
     if (req.method === 'POST') {
-        const emailProcessor = new EmailProcessor({
-            emailEntityName: 'InboundEmail',
-            attachmentEntityName: 'InboundEmailAttachment',
-            bucketName: 'aeroster-inbound-email-attachments',
-            datastore: new Datastore(),
-            storage: new Storage(),
+        const emailProcessed = new Promise((resolve) => {
+            const emailProcessor = new EmailProcessor({
+                emailEntityName: 'InboundEmail',
+                attachmentEntityName: 'InboundEmailAttachment',
+                bucketName: 'aeroster-inbound-email-attachments',
+                datastore: datastore,
+                storage: storage,
+            });
+            const busboy = new Busboy({headers: req.headers});
+            busboy.on('field', emailProcessor.processField.bind(emailProcessor)); // Process each field
+            busboy.on('file', emailProcessor.processFile.bind(emailProcessor)); // Process each file uploaded
+            busboy.on('finish', () => {
+                emailProcessor.save.bind(emailProcessor)()
+                    .then((emailKey) => resolve(emailKey));
+            });
+            // Workaround to support req.rawBody not being available in the emulator
+            // https://github.com/GoogleCloudPlatform/cloud-functions-emulator/issues/161#issuecomment-376563784
+            if (req.rawBody) {
+                busboy.end(req.rawBody);
+            } else {
+                req.pipe(busboy);
+            }
         });
-        const busboy = new Busboy({headers: req.headers});
-        busboy.on('field', emailProcessor.processField.bind(emailProcessor)); // Process each field
-        busboy.on('file', emailProcessor.processFile.bind(emailProcessor)); // Process each file uploaded
-        busboy.on('finish', () => {
-            const emailSaved = emailProcessor.saveEmail.bind(emailProcessor)();
-            Promise.all([emailSaved, debugReady])
-                .then((data) => res.send(`Email received and processed successfully: ${data[0]}`))
-                .catch((err) => res.status(500).send(err));
-        });
-        // Workaround to support req.rawBody not being available in the emulator
-        // https://github.com/GoogleCloudPlatform/cloud-functions-emulator/issues/161#issuecomment-376563784
-        if (req.rawBody) {
-            busboy.end(req.rawBody);
-        } else {
-            req.pipe(busboy);
-        }
+        Promise.all([emailProcessed, debugReady])
+            .then((data) => res.send(`Email received and processed successfully: ${data[0]}`))
+            .catch((err) => res.status(500).send(err));
     } else {
         // Return a "method not allowed" error
         debugReady.then(() => res.status(405).end());
