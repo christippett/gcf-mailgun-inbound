@@ -7,7 +7,7 @@ module.exports.filterProperties = function (raw, includedKeys) {
       obj[key] = raw[key]
       return obj
     }, {})
-  }
+}
 
 module.exports.convertTimestampToDate = function (timestamp) {
   let timestampAsDate = new Date(0)

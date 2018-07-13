@@ -5,7 +5,7 @@
 
 const path = require('path')
 const os = require('os')
-const fs = require('fs');
+const fs = require('fs')
 const Busboy = require('busboy')
 
 module.exports = function (req, options) {
