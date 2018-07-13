@@ -19,7 +19,12 @@ const config = {
 exports.mailgunInboundEmail = (req, res) => {
   if (req.method === 'POST') {
     const emailProcessor = new EmailProcessor(config, datastore, storage)
-    emailProcessor.handleRequest(req, res)
+    emailProcessor.handleRequest(req)
+      .then(() => res.send(`Email received and processed successfully: ${emailProcessor.key.path[1]}`))
+      .catch((err) => {
+        console.error(err)
+        res.status(500).send('Something went wrong!')
+      })
   } else {
     res.status(405).end()
   }

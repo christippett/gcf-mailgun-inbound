@@ -15,18 +15,13 @@ module.exports = class EmailProcessor {
       this.storage = storage
     }
 
-    handleRequest (req, res) {
-      busboyPromise(req)
+    handleRequest (req) {
+      return busboyPromise(req)
       .then((parts) => {
-        const saveMessage = this.saveMessage(parts.fields, objectPrefix)
+        const saveMessage = this.saveMessage(parts.fields)
         const objectPrefix = [parts.fields['recipient'], this.key.path[1]]
         const saveAttachments = this.saveAttachments(parts.files, objectPrefix)
         return Promise.all([saveMessage, saveAttachments])
-      })
-      .then(() => res.send(`Email received and processed successfully: ${this.key.path[1]}`))
-      .catch((err) => {
-        console.error(err)
-        res.status(500).send('Something went wrong!')
       })
     }
 
