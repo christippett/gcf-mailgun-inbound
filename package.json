@@ -4,7 +4,7 @@
   "description": "Google Cloud Function for receiving inbound emails from Mailgun, supports saving email data to Google Datastore and attachments to Google Cloud Storage",
   "main": "function/index.js",
   "scripts": {
-    "test": "standard && ava",
+    "test": "standard && ava --verbose",
     "debug": "functions-emulator deploy mailgunInboundEmail --trigger-http && functions-emulator debug mailgunInboundEmail"
   },
   "author": "Chris Tippett",
