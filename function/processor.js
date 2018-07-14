@@ -43,9 +43,13 @@ module.exports = class EmailProcessor {
       'content-id-map'
     ]
     const data = filterProperties(fields, includeFields)
-    data['timestamp'] = parseInt(data['timestamp'])
-    data['attachment-count'] = parseInt(data['attachment-count'])
-    data['date'] = convertTimestampToDate(data['timestamp'])
+    if (data.hasOwnProperty('timestamp')) {
+      data['timestamp'] = parseInt(data['timestamp'])
+      data['date'] = convertTimestampToDate(data['timestamp'])
+    }
+    if (data.hasOwnProperty('attachment-count')) {
+      data['attachment-count'] = parseInt(data['attachment-count'])
+    }
     return this.datastore.save({key: this.key, excludeFromIndexes, data})
       .then(() => console.log(`${this.emailEntity} saved with key: ${this.key.path[1]}`))
       .catch((err) => {
