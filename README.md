@@ -1,4 +1,4 @@
-Google Cloud Function - Mailgun Inbound Emails
+Google Cloud Function - Inbound Email Receiver
 ==============================================
 
 Google Cloud Function for receiving inbound emails from Mailgun
