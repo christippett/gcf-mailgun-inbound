@@ -8,7 +8,7 @@ Features
 - Receives messages POSTed by Mailgun (via forwarding route)
 - Saves parsed message data to Google Datastore
 - Saves email attachments to Google Cloud Storage
-- Saves email metadata to Google Datastore (descendent of message)
+- Saves attachment metadata to Google Datastore (descendent of message)
 
 TODO
 ----
