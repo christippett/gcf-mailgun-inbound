@@ -14,4 +14,3 @@ test('can convert integer timestamp to date object', (t) => {
   const expectedDate = new Date('2018-07-13T16:30:00Z')
   t.deepEqual(date, expectedDate)
 })
-

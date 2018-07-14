@@ -15,11 +15,11 @@ test.beforeEach(t => {
     save: sinon.fake.resolves()
   }
   const storage = {
-    bucket: sinon.fake(),
+    bucket: sinon.fake()
   }
-	t.context = {
+  t.context = {
     processor: new EmailProcessor(config, datastore, storage)
-	}
+  }
 })
 
 test('message saved to datastore', (t) => {
@@ -45,4 +45,3 @@ test('message data cleansed before saving', (t) => {
   const data = t.context.processor.datastore.save.firstCall.args[0].data
   t.deepEqual(data, expectedData)
 })
-
